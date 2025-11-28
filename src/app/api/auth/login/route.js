@@ -1,8 +1,19 @@
-import prisma from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 export async function POST(req) {
+  let prisma;
+  try {
+    // dynamic import so module-level Prisma instantiation errors can be caught here
+    prisma = (await import("@/lib/prisma")).default;
+  } catch (err) {
+    console.error("Prisma import error", err);
+    return new Response(
+      JSON.stringify({ error: "Prisma import error", message: err.message, stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined }),
+      { status: 500 }
+    );
+  }
+
   try {
     const { email, password } = await req.json();
 
@@ -20,7 +31,7 @@ export async function POST(req) {
 
     return new Response(JSON.stringify({ data: { token, user: { id: user.id, email: user.email, role: user.role } } }), { status: 200 });
   } catch (err) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
+    console.error("Login handler error", err);
+    return new Response(JSON.stringify({ error: "Server error", message: err.message, stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined }), { status: 500 });
   }
 }

@@ -77,3 +77,42 @@ export const POST = authMiddleware(async (req, ctx) => {
     return new Response(JSON.stringify({ error: "Upload failed" }), { status: 500 });
   }
 });
+
+export const DELETE = authMiddleware(async (req, ctx) => {
+  try {
+    const body = await req.json();
+    const { id, url } = body || {};
+    const prisma = (await import("@/lib/prisma")).default;
+    const uploadDir = path.join(process.cwd(), "public", "uploads");
+
+    let imageRecord = null;
+    if (id) {
+      imageRecord = await prisma.image.findUnique({ where: { id: Number(id) } });
+    } else if (url) {
+      imageRecord = await prisma.image.findFirst({ where: { url } });
+    } else {
+      return new Response(JSON.stringify({ error: "Provide id or url to delete" }), { status: 400 });
+    }
+
+    // If record exists in DB, delete it
+    if (imageRecord) {
+      await prisma.image.delete({ where: { id: imageRecord.id } });
+    }
+
+    // Attempt to delete file from disk if path looks like /uploads/...
+    const targetUrl = url || (imageRecord && imageRecord.url);
+    if (targetUrl && targetUrl.startsWith("/uploads/")) {
+      const filePath = path.join(process.cwd(), "public", targetUrl.replace(/^\//, ""));
+      try {
+        await fs.promises.unlink(filePath);
+      } catch (e) {
+        // ignore if file not found
+      }
+    }
+
+    return new Response(JSON.stringify({ data: null }), { status: 200 });
+  } catch (err) {
+    console.error(err);
+    return new Response(JSON.stringify({ error: "Delete failed" }), { status: 500 });
+  }
+});
